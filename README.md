@@ -59,20 +59,26 @@ In the Cloudera console:
 
 ### 2. Register the workbench runtime
 
-**Option A (recommended):** Add the pre-built runtime image to **Admin → Runtime Catalog → Add Runtime**:
+**Option A (recommended):** Use the **pre-built runtime image** — no Docker build required. In **Admin → Runtime Catalog → Add Runtime**, paste:
 
 ```text
-docker.io/kevintalbert/claude-code-caii:latest
+docker.io/kevintalbert/claudeworkbench:latest
 ```
+
+![Runtime catalog — Claude Code + CAI Inference registered successfully](assets/add-runtime.png)
+
+When registered, the runtime shows **Edition: Claude Code + CAI Inference** and **Runtime Image: `docker.io/kevintalbert/claudeworkbench:latest`** with a green status checkmark.
+
+Then create a project with that runtime and start a session. **No GPU required on the workbench pod**—inference runs on CAII.
 
 **Option B:** Build and register from this repo:
 
 ```bash
-docker build --pull --rm -f Dockerfile -t <your-registry>/claude-code-caii:1.0.0 .
+docker build --pull --rm -f Dockerfile -t <your-registry>/claudeworkbench:1.0.0 .
 # push to your registry, then Add Runtime in the catalog
 ```
 
-Create a project with that runtime and start a session. **No GPU required on the workbench pod**—inference runs on CAII.
+Create a project with that runtime and start a session.
 
 ### 3. Set environment variables
 
