@@ -78,6 +78,8 @@ docker build --pull --rm -f Dockerfile -t <your-registry>/claudeworkbench:1.0.0 
 # push to your registry, then Add Runtime in the catalog
 ```
 
+The Docker build installs pinned LiteLLM/FastAPI versions from `requirements-litellm.txt` and runs `scripts/verify-litellm-install.sh` — the build fails if the proxy cannot import or start.
+
 Create a project with that runtime and start a session.
 
 ### 3. Set environment variables
@@ -99,6 +101,8 @@ Optional:
 | Name | Default | Description |
 |------|---------|-------------|
 | `CAII_LITELLM_PORT` | `4000` | Local LiteLLM proxy port |
+| `CAII_MAX_OUTPUT_TOKENS` | `8192` | Cap Claude Code output tokens to fit Devstral's 65536 context window |
+| `CAII_MAX_INPUT_TOKENS` | `57344` | Advertised input limit to LiteLLM (65536 − output cap) |
 | `LITELLM_USE_CHAT_COMPLETIONS_URL_FOR_ANTHROPIC_MESSAGES` | `true` | Required for most vLLM endpoints |
 
 ### 4. Sync and run Claude Code
@@ -177,6 +181,8 @@ Allowed vLLM flags in the UI: [CAII supported vLLM arguments](https://docs.cloud
 | `assets/` | Screenshots for README and demos |
 | `scripts/cai-runtime-startup.sh` | Runtime profile hook: `claude`, `claude-sync-config`, helpers |
 | `scripts/lib/cai-common.sh` | LiteLLM proxy + CAII env helpers |
+| `requirements-litellm.txt` | Pinned LiteLLM + FastAPI deps (verified at image build) |
+| `scripts/verify-litellm-install.sh` | Build-time smoke test for the LiteLLM proxy |
 | `Dockerfile` | Workbench runtime image definition |
 | `METADATA.yaml` | Blueprint catalog metadata |
 
@@ -204,7 +210,8 @@ Sizing is for the **CAII model** (not the workbench runtime).
 | `401 Unauthorized` | New JWT in `CAII_API_TOKEN` |
 | Model error / 404 on `/responses` in `litellm.log` | vLLM endpoints need chat completions. Ensure `LITELLM_USE_CHAT_COMPLETIONS_URL_FOR_ANTHROPIC_MESSAGES=true` (default in this runtime), then `claude-stop-proxy` and `claude-sync-config` |
 | Chat works, tools don't | Devstral + vLLM tool flags on the endpoint (`--enable-auto-tool-choice --tool-call-parser mistral`) |
-| Proxy won't start | `claude-logs` or `tail ~/.claude/cai-inference/litellm.log` |
+| Proxy won't start | `claude-logs` or `tail ~/.claude/cai-inference/litellm.log`. The runtime image pins LiteLLM/FastAPI in `requirements-litellm.txt` and verifies the proxy at **Docker build** time — rebuild and re-register the runtime if you are on an older image. |
+| `ContextWindowExceededError` / `requested 64000 output tokens` in `litellm.log` | Claude Code Opus 4.6 requests up to 64k output tokens; Devstral is capped at **65536** total context (`--max-model-len 65536`). The runtime defaults to **`CAII_MAX_OUTPUT_TOKENS=8192`** and **`CLAUDE_CODE_DISABLE_1M_CONTEXT=1`**. Run `claude-stop-proxy`, `claude-sync-config`, then `claude` again. Increase only if your endpoint uses a larger `--max-model-len`. |
 
 ## Documentation
 

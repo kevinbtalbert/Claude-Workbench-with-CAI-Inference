@@ -17,6 +17,11 @@ LITELLM_PORT="${CAII_LITELLM_PORT:-${CAI_LITELLM_PORT:-4000}}"
 LITELLM_MASTER_KEY="${CAI_LITELLM_MASTER_KEY:-sk-cai-local-proxy}"
 PROXY_URL="http://127.0.0.1:${LITELLM_PORT}"
 
+# Devstral on CAII is deployed with --max-model-len 65536. Claude Code Opus 4.6 can
+# request 64000 output tokens plus a large system prompt — cap output to fit the window.
+CAII_MAX_OUTPUT_TOKENS="${CAII_MAX_OUTPUT_TOKENS:-8192}"
+CAII_MAX_INPUT_TOKENS="${CAII_MAX_INPUT_TOKENS:-57344}"
+
 CLAUDE_OPUS_ALIAS="${CAI_CLAUDE_OPUS_ALIAS:-claude-opus-4-6}"
 CLAUDE_SONNET_ALIAS="${CAI_CLAUDE_SONNET_ALIAS:-claude-sonnet-4-6}"
 CLAUDE_HAIKU_ALIAS="${CAI_CLAUDE_HAIKU_ALIAS:-claude-haiku-4-5-20251001}"
@@ -87,10 +92,12 @@ cai_litellm_bin() {
 }
 
 cai_write_litellm_config() {
-    local base_url model openai_model
+    local base_url model openai_model max_out max_in
     base_url="${CAII_OPENAI_BASE_URL%/}"
     model="${CAII_MODEL}"
     openai_model="openai/${model}"
+    max_out="${CAII_MAX_OUTPUT_TOKENS:-8192}"
+    max_in="${CAII_MAX_INPUT_TOKENS:-57344}"
 
     mkdir -p "$(dirname "$LITELLM_CONFIG")"
     cat >"$LITELLM_CONFIG" <<YAML
@@ -101,20 +108,38 @@ model_list:
       model: ${openai_model}
       api_base: ${base_url}
       api_key: os.environ/CAII_API_TOKEN
+      max_tokens: ${max_out}
+    model_info:
+      max_tokens: 65536
+      max_input_tokens: ${max_in}
+      max_output_tokens: ${max_out}
   - model_name: ${CLAUDE_SONNET_ALIAS}
     litellm_params:
       model: ${openai_model}
       api_base: ${base_url}
       api_key: os.environ/CAII_API_TOKEN
+      max_tokens: ${max_out}
+    model_info:
+      max_tokens: 65536
+      max_input_tokens: ${max_in}
+      max_output_tokens: ${max_out}
   - model_name: ${CLAUDE_HAIKU_ALIAS}
     litellm_params:
       model: ${openai_model}
       api_base: ${base_url}
       api_key: os.environ/CAII_API_TOKEN
+      max_tokens: ${max_out}
+    model_info:
+      max_tokens: 65536
+      max_input_tokens: ${max_in}
+      max_output_tokens: ${max_out}
 
 litellm_settings:
   master_key: ${LITELLM_MASTER_KEY}
   drop_params: true
+  modify_params: true
+  use_chat_completions_url_for_anthropic_messages: true
+  request_timeout: 600
 YAML
 }
 
@@ -193,12 +218,15 @@ EOF
     cat >"$HOME/.claude/settings.json" <<EOF
 {
   "promptSuggestionEnabled": false,
+  "model": "${CLAUDE_SONNET_ALIAS}",
   "env": {
     "ANTHROPIC_BASE_URL": "${PROXY_URL}",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "${CLAUDE_OPUS_ALIAS}",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "${CLAUDE_SONNET_ALIAS}",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "${CLAUDE_SONNET_ALIAS}",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "${CLAUDE_HAIKU_ALIAS}",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "${CAII_MAX_OUTPUT_TOKENS:-8192}",
     "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
     "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
@@ -213,10 +241,12 @@ cai_export_claude_env() {
     export ANTHROPIC_BASE_URL="$PROXY_URL"
     export ANTHROPIC_API_KEY="$LITELLM_MASTER_KEY"
     unset ANTHROPIC_AUTH_TOKEN
-    export ANTHROPIC_DEFAULT_OPUS_MODEL="$CLAUDE_OPUS_ALIAS"
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$CLAUDE_SONNET_ALIAS"
     export ANTHROPIC_DEFAULT_SONNET_MODEL="$CLAUDE_SONNET_ALIAS"
     export ANTHROPIC_DEFAULT_HAIKU_MODEL="$CLAUDE_HAIKU_ALIAS"
     export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="${CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY:-1}"
+    export CLAUDE_CODE_DISABLE_1M_CONTEXT="${CLAUDE_CODE_DISABLE_1M_CONTEXT:-1}"
+    export CLAUDE_CODE_MAX_OUTPUT_TOKENS="${CAII_MAX_OUTPUT_TOKENS:-8192}"
     export LITELLM_USE_CHAT_COMPLETIONS_URL_FOR_ANTHROPIC_MESSAGES="${LITELLM_USE_CHAT_COMPLETIONS_URL_FOR_ANTHROPIC_MESSAGES:-true}"
 }
 
@@ -239,6 +269,7 @@ cai_sync_config() {
     if [[ "$verbose" == "1" ]]; then
         cai_log "LiteLLM proxy: ${PROXY_URL} → ${CAII_OPENAI_BASE_URL} (${endpoint_kind})"
         cai_log "Model: ${CAII_MODEL}"
+        cai_log "Output cap: ${CAII_MAX_OUTPUT_TOKENS:-8192} tokens (Devstral max context 65536)"
         cai_log "Token: CAII_API_TOKEN env (not written to disk)"
         cai_log "Ready: claude"
     fi

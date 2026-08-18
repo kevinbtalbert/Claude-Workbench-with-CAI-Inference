@@ -1,5 +1,5 @@
 # Cloudera ML runtime + Claude Code CLI → LiteLLM → Cloudera AI Inference (Devstral / vLLM)
-FROM --platform=linux/amd64 docker.repository.cloudera.com/cloudera/cdsw/ml-runtime-pbj-jupyterlab-python3.13-standard:2026.04.2-b16
+FROM --platform=linux/amd64 docker.repository.cloudera.com/cloudera/cdsw/ml-runtime-pbj-jupyterlab-python3.13-standard:2026.08.1-b5
 
 # ── System dependencies (agent tooling) ────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,9 +24,13 @@ RUN npm install -g @anthropic-ai/claude-code \
     && command -v claude >/dev/null
 
 # ── LiteLLM proxy (Anthropic API → OpenAI-compatible CAI Inference) ──────────
-RUN python3 -m venv /opt/cai-claude/venv && \
-    /opt/cai-claude/venv/bin/pip install --no-cache-dir --upgrade pip wheel && \
-    /opt/cai-claude/venv/bin/pip install --no-cache-dir 'litellm[proxy]'
+COPY requirements-litellm.txt /opt/cai-claude/requirements-litellm.txt
+COPY scripts/verify-litellm-install.sh /opt/cai-claude/verify-litellm-install.sh
+RUN chmod +x /opt/cai-claude/verify-litellm-install.sh && \
+    python3 -m venv /opt/cai-claude/venv && \
+    /opt/cai-claude/venv/bin/pip install --no-cache-dir --upgrade pip wheel packaging && \
+    /opt/cai-claude/venv/bin/pip install --no-cache-dir -r /opt/cai-claude/requirements-litellm.txt && \
+    SKIP_LITELLM_SMOKE=1 /opt/cai-claude/verify-litellm-install.sh /opt/cai-claude/venv
 
 # ── ttyd: browser-based terminal (optional; CML may wire APP_PORT) ───────────
 RUN TTYD_URL=$(curl -s https://api.github.com/repos/tsl0922/ttyd/releases/latest \
@@ -53,12 +57,14 @@ ENV CAI_HOME="/home/cdsw/.claude/cai-inference" \
     CAII_OPENAI_BASE_URL="" \
     CAII_API_TOKEN="" \
     CAII_MODEL="" \
-    CAII_LITELLM_PORT="4000" \
+    CAII_LITELLM_PORT="${CAII_LITELLM_PORT:-4000}" \
+    CAII_MAX_OUTPUT_TOKENS="8192" \
+    CAII_MAX_INPUT_TOKENS="57344" \
     LITELLM_USE_CHAT_COMPLETIONS_URL_FOR_ANTHROPIC_MESSAGES="true" \
     APP_PORT="8080"
 
 EXPOSE 8080
 WORKDIR /home/cdsw
 
-ENV ML_RUNTIME_EDITION="Claude Code + CAI Inference"
+ENV ML_RUNTIME_EDITION="Claude Code with CAI Inference"
 LABEL com.cloudera.ml.runtime.edition=$ML_RUNTIME_EDITION
