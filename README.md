@@ -1,6 +1,6 @@
 # Cloudera Blueprint: Claude Code with Cloudera AI Inference
 
-> Run [Claude Code](https://code.claude.com/docs/en/quickstart) in Cloudera AI Workbench against [Devstral Small](https://huggingface.co/kevinbtalbert/Devstral-Small-2507) (or any model) on [Cloudera AI Inference (CAII)](https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-use-caii.html). Catalog: [`METADATA.yaml`](METADATA.yaml).
+> Run [Claude Code](https://code.claude.com/docs/en/quickstart) in Cloudera AI Workbench against [Devstral Small](https://huggingface.co/kevinbtalbert/Devstral-Small-2507) (or any model) on [Cloudera AI Inference (CAII)](https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-use-caii.html).
 
 ## Table of Contents
 
@@ -157,14 +157,7 @@ Allowed vLLM flags in the UI: [CAII supported vLLM arguments](https://docs.cloud
 
 ## Architecture
 
-```text
-┌─────────────────────┐   Anthropic API    ┌─────────────────┐   OpenAI-compatible   ┌──────────────────────┐
-│  CAI Workbench      │ ──► localhost:4000 │  LiteLLM proxy  │ ── /chat/completions ►│  CAII model endpoint │
-│  Claude Code CLI    │                     │  (in runtime)   │   Bearer: CDP JWT     │  (vLLM / Devstral)   │
-└─────────────────────┘                     └─────────────────┘                       └──────────────────────┘
-        ▲
-        │  CAII_* env vars + optional /tmp/jwt
-```
+![Claude Code + CAII architecture](assets/architecture-caii-claude-code.png)
 
 | Component | Role |
 |-----------|------|
